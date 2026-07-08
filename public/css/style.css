@@ -893,7 +893,7 @@ header#site-header {
 .cdm-graded-price { font-family: var(--font-mono); font-size: 13px; color: var(--accent); font-weight: 700; }
 .cdm-no-graded    { font-size: 13px; color: var(--text3); padding: 14px 0; }
 .cdm-artwork-wrap { display: flex; align-items: center; justify-content: center; min-height: 340px; padding: 16px; }
-.cdm-artwork-img  { max-width: 100%; max-height: 480px; width: auto; height: auto; object-fit: contain; border-radius: 12px; box-shadow: 0 12px 48px rgba(0,0,0,.6); }
+.cdm-artwork-img  { width: min(100%, 680px); height: auto; max-height: 880px; object-fit: contain; border-radius: 12px; box-shadow: 0 12px 48px rgba(0,0,0,.6); }
 .cdm-no-art       { text-align: center; color: var(--text3); font-size: 14px; }
 
 /* ── Trade Analyser ──────────────────────────────────────────────── */
