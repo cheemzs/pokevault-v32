@@ -854,9 +854,7 @@ header#site-header {
 .card-detail-panel { display: none; }
 .card-detail-panel.active { display: block; }
 
-.cdm-header { display: flex; gap: 16px; align-items: flex-start; margin-bottom: 20px; }
-.cdm-thumb { width: 72px; height: 100px; object-fit: contain; border-radius: 6px; flex-shrink: 0; background: var(--bg3); }
-.cdm-meta { flex: 1; min-width: 0; }
+.cdm-thumb { width: 72px; height: 100px; object-fit: contain; border-radius: 6px; flex-shrink: 0; background: var(--bg3); box-shadow: 0 4px 16px rgba(0,0,0,.5); }
 .cdm-name { font-family: var(--font-display); font-size: 17px; font-weight: 800; color: var(--text); margin-bottom: 4px; }
 .cdm-set  { font-family: var(--font-mono); font-size: 12px; color: var(--text3); }
 .cdm-badge {
@@ -866,6 +864,9 @@ header#site-header {
   background: var(--accent-dim); color: var(--accent);
   border: 1px solid var(--accent-ring);
 }
+/* .cdm-price-grid / .cdm-price-cell are also reused by the search-results
+   graded price panel in app.js, so they stay even though the card detail
+   modal itself now uses the more compact .cdm-stat-row layout below. */
 .cdm-price-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 10px; margin-bottom: 20px;
@@ -880,20 +881,78 @@ header#site-header {
 .cdm-price-sub   { font-size: 10px; color: var(--text3); margin-top: 3px; }
 .cdm-section-title {
   font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
-  color: var(--text3); margin-bottom: 10px; padding-bottom: 6px;
+  color: var(--text3); margin-bottom: 10px; margin-top: 4px; padding-bottom: 6px;
   border-bottom: 1px solid var(--border);
 }
-.cdm-graded-list { display: flex; flex-direction: column; gap: 6px; }
-.cdm-graded-row {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 9px 12px; background: var(--bg3);
-  border: 1px solid var(--border); border-radius: var(--r-sm);
+
+/* Two-column layout: compact info sidebar next to the chart, so the whole
+   Price Info tab (including the FULL chart) fits in view without needing
+   to scroll down to see it. */
+.cdm-layout-grid {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 22px;
+  align-items: start;
 }
-.cdm-graded-label { font-size: 13px; font-weight: 600; color: var(--text); }
-.cdm-graded-price { font-family: var(--font-mono); font-size: 13px; color: var(--accent); font-weight: 700; }
-.cdm-no-graded    { font-size: 13px; color: var(--text3); padding: 14px 0; }
-.cdm-artwork-wrap { display: flex; align-items: center; justify-content: center; min-height: 340px; padding: 16px; }
-.cdm-artwork-img  { width: min(100%, 680px); height: auto; max-height: 880px; object-fit: contain; border-radius: 12px; box-shadow: 0 12px 48px rgba(0,0,0,.6); }
+@media (max-width: 760px) {
+  .cdm-layout-grid { grid-template-columns: 1fr; }
+}
+.cdm-side-col { display: flex; flex-direction: column; gap: 12px; }
+.cdm-main-col { min-width: 0; }
+.cdm-stat-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+}
+.cdm-stat-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--text3); white-space: nowrap;
+}
+.cdm-stat-val {
+  font-family: var(--font-mono); font-size: 13px; font-weight: 700;
+  color: var(--text); text-align: right;
+}
+.cdm-stat-val.accent { color: var(--accent); }
+
+/* Artwork tab
+   REAL FIX for "image stays tiny": `width:auto;height:auto` displays an
+   image at its NATIVE resolution only — max-width/max-height can shrink an
+   image but can NEVER enlarge one past that native size. The card art files
+   coming back from the pricing API are small thumbnails, so no amount of
+   max-width/max-height ever made them look bigger. Setting an explicit
+   width (not auto) forces the browser to actually scale the image UP;
+   height:auto then preserves the aspect ratio. `!important` here is
+   intentional — this exact pair of classes used to be defined a second
+   time elsewhere in the project with the old broken auto/auto values, and
+   whichever copy happened to load last silently won. This is now the ONLY
+   definition of these two classes in the project, and !important makes
+   sure nothing accidentally reintroduces the bug again. */
+.cdm-artwork-wrap {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 560px !important;
+  padding: 8px 0 !important;
+  background: radial-gradient(ellipse at center, rgba(0,229,204,.05) 0%, transparent 70%);
+  border-radius: var(--r-lg);
+}
+.cdm-artwork-img,
+#cdm-panel-art .cdm-artwork-wrap img {
+  width: min(100%, 680px) !important;
+  height: auto !important;
+  max-width: none !important;
+  max-height: 880px !important;
+  object-fit: contain !important;
+  border-radius: 14px;
+  box-shadow: 0 20px 64px rgba(0,0,0,.75), 0 0 0 1px rgba(255,255,255,.06);
+  transition: transform .3s ease;
+}
+.cdm-artwork-img:hover { transform: scale(1.03); }
 .cdm-no-art       { text-align: center; color: var(--text3); font-size: 14px; }
 
 /* ── Trade Analyser ──────────────────────────────────────────────── */
@@ -1308,45 +1367,19 @@ body.auth-page {
   /* Card detail modal: tighter padding */
   #card-detail-content { padding: 18px 16px !important; }
 
-  /* Grade dropdown: full width on mobile */
-  #cdm-grade-row {
-    flex-direction: column !important;
-    align-items: flex-start !important;
-  }
-  #cdm-grade-dropdown {
-    width: 100% !important;
-    min-width: unset !important;
-  }
-
-  /* Artwork tab: full width image */
+  /* Artwork tab: full width image, still force-scaled up (see the base
+     .cdm-artwork-img rule above for why width must be explicit, not auto) */
   .cdm-artwork-wrap {
     min-height: 280px !important;
     padding: 4px 0 !important;
   }
   .cdm-artwork-img {
-    max-width: 100% !important;
+    width: 100% !important;
+    height: auto !important;
+    max-width: none !important;
     max-height: 420px !important;
     border-radius: 10px !important;
   }
-
-  /* Card detail header: stack on mobile */
-  .cdm-header {
-    flex-direction: column !important;
-    align-items: center !important;
-    text-align: center !important;
-  }
-  .cdm-thumb {
-    width: 100px !important;
-    height: 140px !important;
-    margin-bottom: 12px !important;
-  }
-
-  /* Range buttons: scroll horizontally if needed */
-  #pf-chart-range-btns {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-  .pf-range-btn { white-space: nowrap; }
 
   /* P/L overlay: full height */
   .pl-overlay-inner { padding: 16px 14px; }
@@ -1372,13 +1405,8 @@ body.auth-page {
   .trade-vs { display: none; }
 }
 
-/* ── Grade dropdown: always style nicely ── */
-#cdm-grade-dropdown {
-  appearance: none;
-  -webkit-appearance: none;
-}
 
-/* ── CDM chart: more height on mobile for visibility ── */
+
 @media (max-width: 480px) {
   #cdm-chart-canvas { max-height: 220px !important; }
   #portfolio-chart-canvas { max-height: 280px !important; }
@@ -1387,10 +1415,6 @@ body.auth-page {
 /* ── Tap highlight suppression ── */
 * { -webkit-tap-highlight-color: transparent; }
 
-/* ── CDM section title: more breathing room ── */
-.cdm-section-title {
-  margin-top: 4px;
-}
 
 /* ── Portfolio add modal image: bigger on mobile ── */
 @media (max-width: 480px) {
