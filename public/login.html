@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PokéVault — Sign In</title>
+  <link rel="icon" type="image/jpeg" href="/logo.jpeg" />
+  <link rel="stylesheet" href="/css/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <style>
+    body { min-height:100vh; display:flex; align-items:center; justify-content:center; }
+    .auth-wrap { width:100%; max-width:420px; padding:0 24px; }
+    .auth-logo { display:flex; align-items:center; gap:12px; margin-bottom:36px; justify-content:center; }
+    .auth-logo img { width:52px; height:52px; border-radius:50%; object-fit:cover; border:2px solid rgba(0,229,204,0.4); box-shadow:0 0 24px rgba(0,229,204,0.25); }
+    .auth-logo-text { font-family:var(--font-display); font-size:26px; font-weight:900; letter-spacing:-0.03em; background:var(--holo); background-size:300% 300%; -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; animation:holoShift 6s ease infinite; }
+    .auth-version { font-family:var(--font-mono); font-size:9px; color:var(--text3); text-transform:uppercase; letter-spacing:0.12em; margin-top:2px; text-align:center; }
+    .auth-card { background:var(--bg1); border:1px solid var(--border); border-radius:var(--r-xl); padding:36px; box-shadow:0 24px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04); }
+    .auth-tabs { display:flex; background:var(--bg2); border-radius:var(--r-md); padding:4px; margin-bottom:28px; gap:0; }
+    .auth-tab { flex:1; font-family:var(--font-display); font-size:11px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; padding:9px 0; border:none; background:transparent; color:var(--text3); border-radius:calc(var(--r-md) - 2px); cursor:pointer; transition:all 0.18s; }
+    .auth-tab.active { background:var(--bg4); color:var(--accent); box-shadow:0 2px 8px rgba(0,0,0,0.4); }
+    .auth-form { display:flex; flex-direction:column; gap:16px; }
+    .auth-field { display:flex; flex-direction:column; gap:6px; }
+    .auth-label { font-family:var(--font-mono); font-size:10px; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; color:var(--text3); }
+    .auth-input { background:var(--bg2); border:1px solid var(--border); border-radius:var(--r-md); color:var(--text); font-family:var(--font-body); font-size:14px; padding:12px 16px; outline:none; transition:border-color 0.15s, box-shadow 0.15s; width:100%; box-sizing:border-box; }
+    .auth-input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(0,229,204,0.1); }
+    .auth-input::placeholder { color:var(--text3); }
+    .auth-hint { font-family:var(--font-mono); font-size:10px; color:var(--text3); margin-top:2px; letter-spacing:0.03em; }
+    .auth-btn { font-family:var(--font-display); font-size:12px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; padding:14px; border:none; border-radius:var(--r-md); background:var(--accent); color:var(--text-inv); cursor:pointer; transition:opacity 0.15s, transform 0.1s; margin-top:4px; width:100%; }
+    .auth-btn:hover:not(:disabled) { opacity:0.88; transform:translateY(-1px); }
+    .auth-btn:active:not(:disabled) { transform:translateY(0); }
+    .auth-btn:disabled { opacity:0.45; cursor:not-allowed; }
+    .auth-msg { font-size:13px; text-align:center; padding:10px 14px; border-radius:var(--r-md); display:none; line-height:1.5; }
+    .auth-msg.error   { background:rgba(255,95,95,0.1);  color:#ff8888; border:1px solid rgba(255,95,95,0.2); }
+    .auth-msg.success { background:rgba(76,175,125,0.1); color:#6fcf97; border:1px solid rgba(76,175,125,0.2); }
+    .auth-msg.show    { display:block; }
+    .auth-sub { text-align:center; font-size:12px; color:var(--text3); margin-top:20px; line-height:1.6; }
+    @media (max-width: 480px) {
+      .auth-wrap { padding: 0 16px; }
+      .auth-card { padding: 24px 20px; }
+      /* Prevent iOS zoom on input focus */
+      .auth-input { font-size: 16px !important; }
+      .auth-btn { padding: 16px; font-size: 13px; }
+    }
+  </style>
+</head>
+<body>
+<div class="auth-wrap">
+  <div class="auth-logo">
+    <img src="/logo.jpeg" alt="PokéVault" />
+    <div>
+      <div class="auth-logo-text">PokéVault</div>
+      <div class="auth-version">v9 · Live TCG Prices</div>
+    </div>
+  </div>
+
+  <div class="auth-card">
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tab-signin" onclick="switchTab('signin')">Sign In</button>
+      <button class="auth-tab"        id="tab-signup" onclick="switchTab('signup')">Sign Up</button>
+    </div>
+
+    <!-- Sign In -->
+    <div id="pane-signin">
+      <div class="auth-form">
+        <div class="auth-field">
+          <label class="auth-label" for="si-user">Username</label>
+          <input class="auth-input" id="si-user" type="text" placeholder="your_username" autocomplete="username" spellcheck="false" />
+        </div>
+        <div class="auth-field">
+          <label class="auth-label" for="si-pass">Password</label>
+          <input class="auth-input" id="si-pass" type="password" placeholder="••••••••" autocomplete="current-password" />
+        </div>
+        <div class="auth-msg" id="si-msg"></div>
+        <button class="auth-btn" id="si-btn" onclick="doSignIn()">Sign In</button>
+      </div>
+    </div>
+
+    <!-- Sign Up -->
+    <div id="pane-signup" style="display:none;">
+      <div class="auth-form">
+        <div class="auth-field">
+          <label class="auth-label" for="su-user">Username</label>
+          <input class="auth-input" id="su-user" type="text" placeholder="choose_a_username" autocomplete="username" spellcheck="false" />
+          <span class="auth-hint">Letters, numbers, underscores · 3–30 chars</span>
+        </div>
+        <div class="auth-field">
+          <label class="auth-label" for="su-pass">Password</label>
+          <input class="auth-input" id="su-pass" type="password" placeholder="Min. 6 characters" autocomplete="new-password" />
+        </div>
+        <div class="auth-field">
+          <label class="auth-label" for="su-confirm">Confirm Password</label>
+          <input class="auth-input" id="su-confirm" type="password" placeholder="Repeat password" autocomplete="new-password" />
+        </div>
+        <div class="auth-msg" id="su-msg"></div>
+        <button class="auth-btn" id="su-btn" onclick="doSignUp()">Create Account</button>
+      </div>
+    </div>
+  </div>
+
+  <p class="auth-sub">Track your Pokémon card investments.<br/>Live TCG &amp; eBay graded prices.</p>
+</div>
+
+<script>
+  const SUPABASE_URL      = 'https://jqzwvcjkekvdyimhryha.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impxend2Y2prZWt2ZHlpbWhyeWhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1NzU5OTYsImV4cCI6MjA5NjE1MTk5Nn0.waU_KSWUuB0W_0Zu7tizbraAxmSpXyEVnKWCQnruXjs';
+  const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // Redirect if already logged in
+  (async () => {
+    const { data: { session } } = await _sb.auth.getSession();
+    if (session) window.location.href = '/';
+  })();
+
+  function toEmail(u) { return u.trim().toLowerCase() + '@pokevault.app'; }
+
+  function switchTab(tab) {
+    document.getElementById('tab-signin').classList.toggle('active', tab === 'signin');
+    document.getElementById('tab-signup').classList.toggle('active', tab === 'signup');
+    document.getElementById('pane-signin').style.display = tab === 'signin' ? '' : 'none';
+    document.getElementById('pane-signup').style.display = tab === 'signup' ? '' : 'none';
+    clearMsg('si-msg'); clearMsg('su-msg');
+  }
+
+  function showMsg(id, text, type) {
+    const el = document.getElementById(id);
+    el.textContent = text; el.className = `auth-msg ${type} show`;
+  }
+  function clearMsg(id) {
+    const el = document.getElementById(id);
+    el.textContent = ''; el.className = 'auth-msg';
+  }
+
+  function setLoading(btnId, loading, defaultLabel) {
+    const btn = document.getElementById(btnId);
+    btn.disabled = loading;
+    btn.textContent = loading ? 'Please wait…' : defaultLabel;
+  }
+
+  // ── Sign In ─────────────────────────────────────────────────────────────────
+  // Sign-in uses the Supabase JS client directly — it always works even when
+  // email signups are disabled (disabling signups doesn't disable sign-ins).
+  async function doSignIn() {
+    const username = document.getElementById('si-user').value.trim();
+    const password = document.getElementById('si-pass').value;
+    if (!username || !password) {
+      showMsg('si-msg', 'Please enter your username and password.', 'error'); return;
+    }
+    setLoading('si-btn', true, 'Sign In');
+    const { error } = await _sb.auth.signInWithPassword({ email: toEmail(username), password });
+    setLoading('si-btn', false, 'Sign In');
+    if (error) {
+      const msg = (error.message || '').toLowerCase();
+      showMsg('si-msg',
+        msg.includes('invalid') || msg.includes('credentials') || msg.includes('not found')
+          ? 'Incorrect username or password.'
+          : error.message,
+        'error');
+      return;
+    }
+    window.location.href = '/';
+  }
+
+  // ── Sign Up ─────────────────────────────────────────────────────────────────
+  // Sign-up goes through our own Vercel serverless function (/api/auth) which
+  // uses the Supabase Admin API (service_role key). This bypasses the
+  // "email signups disabled" restriction entirely — the admin API can always
+  // create users regardless of that setting.
+  async function doSignUp() {
+    const username = document.getElementById('su-user').value.trim();
+    const password = document.getElementById('su-pass').value;
+    const confirm  = document.getElementById('su-confirm').value;
+
+    if (!username || username.length < 3) {
+      showMsg('su-msg', 'Username must be at least 3 characters.', 'error'); return;
+    }
+    if (username.length > 30) {
+      showMsg('su-msg', 'Username must be 30 characters or less.', 'error'); return;
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+      showMsg('su-msg', 'Username can only contain letters, numbers, and underscores.', 'error'); return;
+    }
+    if (!password || password.length < 6) {
+      showMsg('su-msg', 'Password must be at least 6 characters.', 'error'); return;
+    }
+    if (password !== confirm) {
+      showMsg('su-msg', 'Passwords do not match.', 'error'); return;
+    }
+
+    setLoading('su-btn', true, 'Create Account');
+
+    let result;
+    try {
+      const resp = await fetch('/api/auth', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ action: 'signup', username, password }),
+      });
+      result = await resp.json();
+      if (!resp.ok) {
+        showMsg('su-msg', result.error || 'Sign-up failed. Please try again.', 'error');
+        setLoading('su-btn', false, 'Create Account');
+        return;
+      }
+    } catch (e) {
+      showMsg('su-msg', 'Network error. Please check your connection and try again.', 'error');
+      setLoading('su-btn', false, 'Create Account');
+      return;
+    }
+
+    setLoading('su-btn', false, 'Create Account');
+
+    if (result.autoSignIn && result.access_token) {
+      // Server signed us in — set the session directly in the Supabase client
+      await _sb.auth.setSession({
+        access_token:  result.access_token,
+        refresh_token: result.refresh_token,
+      });
+      window.location.href = '/';
+    } else {
+      // Account created but auto sign-in failed — ask user to sign in manually
+      showMsg('su-msg', 'Account created! Sign in now.', 'success');
+      setTimeout(() => {
+        switchTab('signin');
+        document.getElementById('si-user').value = username;
+        document.getElementById('si-pass').focus();
+      }, 1200);
+    }
+  }
+
+  // Enter key support
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    const onSignup = document.getElementById('pane-signup').style.display !== 'none';
+    if (onSignup) doSignUp(); else doSignIn();
+  });
+</script>
+</body>
+</html>

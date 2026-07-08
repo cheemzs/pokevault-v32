@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PokéVault — Public Portfolio</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    /* ── Public portfolio page styles ─────────────────────────────── */
+    .pv-public-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 24px 20px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .pv-public-header img.pv-logo {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      object-fit: cover;
+    }
+    .pv-public-header .pv-site-name {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .pv-public-hero {
+      max-width: 860px;
+      margin: 28px auto 0;
+      padding: 0 16px;
+    }
+    .pv-public-hero h1 {
+      font-size: 22px;
+      font-weight: 700;
+      margin: 0 0 4px;
+    }
+    .pv-public-hero .pv-meta {
+      font-size: 13px;
+      color: var(--text3);
+      margin: 0 0 18px;
+    }
+    .pv-public-hero .pv-stats-row {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
+    .pv-stat-chip {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-size: 13px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .pv-stat-chip .pv-chip-label {
+      color: var(--text3);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .pv-stat-chip .pv-chip-value {
+      font-weight: 700;
+      font-size: 16px;
+      font-family: var(--font-mono, monospace);
+      color: var(--text);
+    }
+    .pv-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 14px;
+      max-width: 860px;
+      margin: 0 auto 40px;
+      padding: 0 16px;
+    }
+    .pv-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .pv-card img {
+      width: 100%;
+      aspect-ratio: 3/4;
+      object-fit: cover;
+      background: var(--surface2);
+    }
+    .pv-card .pv-card-no-img {
+      width: 100%;
+      aspect-ratio: 3/4;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 40px;
+      background: var(--surface2);
+    }
+    .pv-card-info {
+      padding: 8px 10px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      flex: 1;
+    }
+    .pv-card-name {
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.3;
+      color: var(--text);
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+    .pv-card-set {
+      font-size: 11px;
+      color: var(--text3);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .pv-card-value {
+      font-size: 12px;
+      font-weight: 700;
+      font-family: var(--font-mono, monospace);
+      color: var(--accent);
+      margin-top: 4px;
+    }
+    .pv-card-badges {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+    .pv-badge {
+      font-size: 10px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1px 5px;
+      color: var(--text3);
+    }
+    .pv-empty {
+      text-align: center;
+      color: var(--text3);
+      padding: 60px 20px;
+      font-size: 15px;
+    }
+    .pv-error {
+      text-align: center;
+      padding: 80px 20px;
+      color: var(--text3);
+    }
+    .pv-error h2 { color: var(--text); margin-bottom: 8px; }
+    .pv-loading {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text3);
+      font-size: 15px;
+    }
+    .pv-cta {
+      text-align: center;
+      margin: 0 auto 40px;
+      font-size: 13px;
+      color: var(--text3);
+    }
+    .pv-cta a { color: var(--accent); text-decoration: none; font-weight: 600; }
+    .pv-cta a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <!-- Site header -->
+  <header class="pv-public-header">
+    <img src="/logo.jpeg" alt="PokéVault" class="pv-logo" />
+    <a href="/" class="pv-site-name">PokéVault</a>
+  </header>
+
+  <!-- Dynamic content -->
+  <div id="pv-content">
+    <div class="pv-loading">Loading portfolio…</div>
+  </div>
+
+  <script>
+    // ── Extract slug from URL path (/p/<slug>) ─────────────────────
+    const pathParts = window.location.pathname.split('/').filter(Boolean);
+    const slug = pathParts[1] || '';   // /p/<slug>
+
+    if (!slug) {
+      document.getElementById('pv-content').innerHTML = `
+        <div class="pv-error">
+          <h2>Portfolio not found</h2>
+          <p>No username was provided in the URL.</p>
+        </div>`;
+    } else {
+      loadPublicPortfolio(slug);
+    }
+
+    async function loadPublicPortfolio(slug) {
+      const contentEl = document.getElementById('pv-content');
+
+      try {
+        // ── API key fix: /api/portfolio sets both apikey + Authorization ──
+        // (The Fetch call here goes to our own Vercel function which handles
+        //  the Supabase headers server-side — no key exposure in the browser.)
+        const resp = await fetch(`/api/portfolio?slug=${encodeURIComponent(slug)}`);
+        const data = await resp.json();
+
+        if (!resp.ok) {
+          const msg = data.error || 'Portfolio not found or sharing is disabled.';
+          contentEl.innerHTML = `
+            <div class="pv-error">
+              <h2>Portfolio unavailable</h2>
+              <p>${escHtml(msg)}</p>
+              <p style="margin-top:16px;"><a href="/">← Back to PokéVault</a></p>
+            </div>`;
+          return;
+        }
+
+        const { profile, items } = data;
+        const totalItems = items.length;
+        const totalValue = items.reduce((s, i) => s + (parseFloat(i.current_value || 0) * (i.quantity || 1)), 0);
+        const fmtSgd     = v => 'S$' + v.toLocaleString('en-SG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+        document.title = `${profile.username}'s Portfolio — PokéVault`;
+
+        const cardsHtml = totalItems === 0
+          ? `<div class="pv-empty">This trainer hasn't added any items yet.</div>`
+          : `<div class="pv-grid">${items.map(renderCard).join('')}</div>`;
+
+        contentEl.innerHTML = `
+          <div class="pv-public-hero">
+            <h1>${escHtml(profile.username)}'s Portfolio</h1>
+            <p class="pv-meta">
+              Pokémon card &amp; sealed product collection${profile.is_premium ? ' · ⭐ Premium' : ''}
+            </p>
+            <div class="pv-stats-row">
+              <div class="pv-stat-chip">
+                <span class="pv-chip-label">Items</span>
+                <span class="pv-chip-value">${totalItems}</span>
+              </div>
+              <div class="pv-stat-chip">
+                <span class="pv-chip-label">Current Value</span>
+                <span class="pv-chip-value">${fmtSgd(totalValue)}</span>
+              </div>
+            </div>
+          </div>
+          ${cardsHtml}
+          <div class="pv-cta">
+            <p>Track your own collection at <a href="/">pokevault.app</a></p>
+          </div>`;
+
+      } catch (err) {
+        contentEl.innerHTML = `
+          <div class="pv-error">
+            <h2>Something went wrong</h2>
+            <p>Could not load this portfolio. Please try again later.</p>
+          </div>`;
+        console.error('loadPublicPortfolio error:', err);
+      }
+    }
+
+    function renderCard(item) {
+      const fmtSgd  = v => 'S$' + parseFloat(v).toLocaleString('en-SG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const imgHtml = item.image_url
+        ? `<img src="${escHtml(item.image_url)}" alt="${escHtml(item.name)}" loading="lazy" />`
+        : `<div class="pv-card-no-img">${item.type === 'sealed' ? '📦' : '🃏'}</div>`;
+
+      const valueHtml = item.current_value != null
+        ? `<div class="pv-card-value">${fmtSgd(parseFloat(item.current_value) * (item.quantity || 1))}</div>`
+        : '';
+
+      const badges = [
+        item.condition_or_grade && item.condition_or_grade !== 'Near Mint' ? item.condition_or_grade : null,
+        item.language === 'japanese' ? '🇯🇵 JPN' : null,
+        item.quantity > 1 ? `×${item.quantity}` : null,
+      ].filter(Boolean).map(b => `<span class="pv-badge">${escHtml(b)}</span>`).join('');
+
+      return `
+        <div class="pv-card">
+          ${imgHtml}
+          <div class="pv-card-info">
+            <div class="pv-card-name">${escHtml(item.name)}</div>
+            ${item.set_name ? `<div class="pv-card-set">${escHtml(item.set_name)}</div>` : ''}
+            ${valueHtml}
+            ${badges ? `<div class="pv-card-badges">${badges}</div>` : ''}
+          </div>
+        </div>`;
+    }
+
+    function escHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+  </script>
+</body>
+</html>

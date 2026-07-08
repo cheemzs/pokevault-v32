@@ -1,0 +1,9 @@
+{
+  "name": "pokevault-v26",
+  "version": "26.0.0",
+  "description": "Pok\u00e9Vault \u2014 Pok\u00e9mon card & sealed product portfolio tracker with live TCG prices, price history chart, trade analyser, public portfolio sharing, and full mobile support.",
+  "scripts": {
+    "dev": "vercel dev"
+  },
+  "dependencies": {}
+}

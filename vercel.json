@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "routes": [
+    { "src": "^/api/pokeprice$",    "dest": "/api/pokeprice"      },
+    { "src": "^/api/search$",       "dest": "/api/search"         },
+    { "src": "^/api/auth$",         "dest": "/api/auth"           },
+    { "src": "^/api/portfolio$",    "dest": "/api/portfolio"      },
+    { "src": "^/api/graded$",       "dest": "/api/graded"         },
+    { "src": "^/p/([^/]+)$",        "dest": "/public/portfolio.html" },
+    { "src": "^/css/(.*)",          "dest": "/public/css/$1"      },
+    { "src": "^/js/(.*)",           "dest": "/public/js/$1"       },
+    { "src": "^/logo.jpeg$",        "dest": "/public/logo.jpeg"   },
+    { "src": "^/login$",            "dest": "/public/login.html"  },
+    { "src": "^/$",                 "dest": "/public/index.html"  },
+    { "src": "^/(.*)",              "dest": "/public/$1"          }
+  ]
+}

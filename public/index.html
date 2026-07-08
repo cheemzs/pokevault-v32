@@ -1,0 +1,1132 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PokéVault</title>
+  <link rel="icon" type="image/jpeg" href="/logo.jpeg" />
+  <meta name="description" content="Search Pokémon card prices and track your investment portfolio." />
+  <link rel="stylesheet" href="/css/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <style>
+    /* ── Global scale & container ── */
+    html { font-size: 15px; }
+
+    #app {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 20px;
+      box-sizing: border-box;
+    }
+
+    /* ── P/L Dashboard tabs ── */
+    .pl-tab-nav { display:flex; gap:4px; margin-bottom:20px; border-bottom:1px solid var(--border); }
+    .pl-tab-btn {
+      padding:8px 18px; border:none; background:transparent; color:var(--text3);
+      font-size:13px; font-weight:600; font-family:var(--font-ui); cursor:pointer;
+      border-bottom:2px solid transparent; margin-bottom:-1px; transition:color .15s,border-color .15s;
+    }
+    .pl-tab-btn.active { color:var(--accent); border-bottom-color:var(--accent); }
+    .pl-tab-btn:hover:not(.active) { color:var(--text); }
+
+    /* ── P/L Overlay ── */
+    .pl-overlay-inner { padding:28px; max-height:80vh; overflow-y:auto; }
+    .pl-panel { display:none; }
+    .pl-panel.active { display:block; }
+
+    /* ── Lifetime banner ── */
+    .pl-lifetime-banner {
+      display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap;
+      gap:12px; padding:16px 20px; background:var(--bg2); border:1px solid var(--border);
+      border-radius:var(--r-md); margin-bottom:20px;
+    }
+    .pl-lifetime-label { font-size:12px; color:var(--text3); text-transform:uppercase; letter-spacing:.06em; }
+    .pl-lifetime-val   { font-family:var(--font-mono); font-size:22px; font-weight:700; }
+
+    /* ── Sold table ── */
+    .pl-txn-table { width:100%; border-collapse:collapse; font-size:13px; }
+    .pl-txn-table th { text-align:left; padding:8px 10px; color:var(--text3); font-size:11px; text-transform:uppercase; letter-spacing:.06em; border-bottom:1px solid var(--border); }
+    .pl-txn-table td { padding:10px 10px; border-bottom:1px solid rgba(255,255,255,.04); vertical-align:middle; }
+    .pl-txn-table tr:last-child td { border-bottom:none; }
+
+    /* ── Top Movers ── */
+    .movers-section-label { font-size:11px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:.08em; margin-bottom:10px; }
+    .mover-row { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid rgba(255,255,255,.04); }
+    .mover-row:last-child { border-bottom:none; }
+    .mover-rank { font-family:var(--font-mono); font-size:11px; color:var(--text3); width:16px; flex-shrink:0; }
+    .mover-info { flex:1; min-width:0; }
+    .mover-name { font-size:13px; font-weight:600; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .mover-meta { font-size:11px; color:var(--text3); margin-top:2px; }
+    .mover-bar-wrap { height:3px; background:rgba(255,255,255,.08); border-radius:2px; margin-top:6px; overflow:hidden; }
+    .mover-bar { height:100%; border-radius:2px; transition:width .4s; }
+    .mover-stats { text-align:right; flex-shrink:0; }
+
+    /* ── Sell modal ── */
+    #sell-overlay .modal { max-width:440px; }
+    .sell-form { padding:0 28px 28px; }
+    .sell-form h2 { font-family:var(--font-display); font-size:15px; font-weight:700; margin-bottom:6px; color:var(--text); }
+    .sell-item-preview { display:flex; gap:12px; align-items:center; margin-bottom:20px; margin-top:16px; padding:12px 14px; background:var(--bg2); border:1px solid var(--border); border-radius:var(--r-md); }
+    .sell-item-preview img { width:36px; height:50px; object-fit:contain; border-radius:3px; }
+    .sell-item-name { font-weight:700; font-size:13px; color:var(--text); }
+    .sell-item-meta { font-size:11px; color:var(--text3); margin-top:3px; font-family:var(--font-mono); }
+    .sell-cost-hint { font-size:11px; color:var(--text3); margin-top:4px; }
+
+    /* ── Metric cards — interactive right three ── */
+    .pf-metric-card.pl-open-btn,
+    .pf-metric-card.clickable-metric {
+      cursor: pointer;
+      transition: border-color .2s ease, background .2s ease, box-shadow .2s ease;
+      position: relative;
+      user-select: none;
+    }
+    .pf-metric-card.pl-open-btn:hover,
+    .pf-metric-card.clickable-metric:hover {
+      border-color: var(--accent);
+      background: var(--bg2);
+      box-shadow: 0 0 0 1px rgba(0,229,204,.18), 0 4px 20px rgba(0,229,204,.08);
+    }
+    /* Arrow accent next to label */
+    .pf-metric-card.pl-open-btn .pf-metric-label::after,
+    .pf-metric-card.clickable-metric .pf-metric-label::after {
+      content: ' ↗';
+      font-size: 11px;
+      color: var(--accent);
+      opacity: 0;
+      transition: opacity .2s;
+    }
+    .pf-metric-card.pl-open-btn:hover .pf-metric-label::after,
+    .pf-metric-card.clickable-metric:hover .pf-metric-label::after {
+      opacity: 1;
+    }
+
+    /* ══════════════════════════════════════
+       CARD DETAIL MODAL — two-tab overlay
+    ══════════════════════════════════════ */
+    .card-detail-tab-nav {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 20px;
+    }
+    .card-detail-tab-btn {
+      padding: 10px 22px;
+      border: none;
+      background: transparent;
+      color: var(--text3);
+      font-size: 13px;
+      font-weight: 600;
+      font-family: var(--font-ui);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      transition: color .15s, border-color .15s;
+    }
+    .card-detail-tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .card-detail-tab-btn:hover:not(.active) { color: var(--text); }
+    .card-detail-panel { display: none; }
+    .card-detail-panel.active { display: block; }
+
+    /* Price info tab */
+    .cdm-header {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      margin-bottom: 20px;
+    }
+    .cdm-thumb {
+      width: 88px;
+      height: 122px;
+      object-fit: contain;
+      border-radius: 8px;
+      flex-shrink: 0;
+      background: var(--bg2);
+      box-shadow: 0 4px 16px rgba(0,0,0,.5);
+    }
+    .cdm-meta { flex: 1; min-width: 0; }
+    .cdm-name  { font-family: var(--font-display); font-size: 17px; font-weight: 800; color: var(--text); margin-bottom: 4px; }
+    .cdm-set   { font-family: var(--font-mono); font-size: 12px; color: var(--text3); }
+    .cdm-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-top: 6px;
+      background: rgba(0,229,204,.12);
+      color: var(--accent);
+      border: 1px solid rgba(0,229,204,.25);
+    }
+    .cdm-price-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .cdm-price-cell {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      padding: 12px 14px;
+    }
+    .cdm-price-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text3);
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      margin-bottom: 6px;
+    }
+    .cdm-price-val {
+      font-family: var(--font-mono);
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .cdm-price-val.accent { color: var(--accent); }
+    .cdm-price-sub {
+      font-size: 10px;
+      color: var(--text3);
+      margin-top: 3px;
+    }
+    .cdm-section-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--text3);
+      margin-bottom: 10px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+    .cdm-graded-list { display: flex; flex-direction: column; gap: 6px; }
+    .cdm-graded-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 12px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--r-sm);
+    }
+    .cdm-graded-label { font-size: 13px; font-weight: 600; color: var(--text); }
+    .cdm-graded-price { font-family: var(--font-mono); font-size: 13px; color: var(--accent); font-weight: 700; }
+    .cdm-no-graded { font-size: 13px; color: var(--text3); padding: 14px 0; }
+
+    /* v32: two-column layout — compact info sidebar next to the chart, so
+       the whole Price Info tab (including the FULL chart) fits in view
+       without needing to scroll down to see it. */
+    .cdm-layout-grid {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      gap: 22px;
+      align-items: start;
+    }
+    @media (max-width: 760px) {
+      .cdm-layout-grid { grid-template-columns: 1fr; }
+    }
+    .cdm-side-col { display: flex; flex-direction: column; gap: 12px; }
+    .cdm-stat-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 10px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--r-sm);
+    }
+    .cdm-stat-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--text3);
+      white-space: nowrap;
+    }
+    .cdm-stat-val {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      text-align: right;
+    }
+    .cdm-stat-val.accent { color: var(--accent); }
+    .cdm-main-col { min-width: 0; }
+
+    /* Artwork tab */
+    .cdm-artwork-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 560px;
+      padding: 8px 0;
+      background: radial-gradient(ellipse at center, rgba(0,229,204,.05) 0%, transparent 70%);
+      border-radius: var(--r-lg);
+    }
+    .cdm-artwork-img {
+      /* v32: bumped up again (was 520x720) — the card detail modal is now
+         960px wide (see .modal-cdm) so the artwork has real room to grow. */
+      max-width: min(100%, 680px);
+      max-height: 880px;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      border-radius: 14px;
+      box-shadow: 0 20px 64px rgba(0,0,0,.75), 0 0 0 1px rgba(255,255,255,.06);
+      transition: transform .3s ease;
+    }
+    .cdm-artwork-img:hover { transform: scale(1.03); }
+    .cdm-no-art {
+      text-align: center;
+      color: var(--text3);
+      font-size: 14px;
+    }
+
+    /* ══════════════════════════════════════
+       TRADE ANALYSER
+    ══════════════════════════════════════ */
+    .trade-overlay-inner { padding:24px 28px; max-height:85vh; overflow-y:auto; }
+    .trade-grid { display:grid; grid-template-columns:1fr auto 1fr; gap:16px; align-items:start; margin-bottom:20px; }
+    .trade-side { background:var(--bg2); border:1px solid var(--border); border-radius:var(--r-md); padding:16px; }
+    .trade-side-label { font-size:11px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:.08em; margin-bottom:12px; }
+    .trade-side-total { font-family:var(--font-mono); font-size:16px; font-weight:700; color:var(--accent); margin-bottom:12px; }
+    .trade-side-effective { font-size:11px; color:var(--text3); margin-top:2px; font-family:var(--font-mono); }
+    .trade-vs { display:flex; align-items:center; justify-content:center; font-family:var(--font-display); font-size:13px; font-weight:700; color:var(--text3); padding-top:40px; }
+    .trade-item-row { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid rgba(255,255,255,.04); }
+    .trade-item-row:last-child { border-bottom:none; }
+    .trade-item-thumb { width:28px; height:40px; object-fit:contain; border-radius:3px; flex-shrink:0; }
+    .trade-item-emoji { font-size:20px; flex-shrink:0; width:28px; text-align:center; }
+    .trade-item-info { flex:1; min-width:0; }
+    .trade-item-name { font-size:12px; font-weight:600; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .trade-item-val { font-size:11px; color:var(--accent); font-family:var(--font-mono); margin-top:2px; }
+    .trade-remove-btn { background:none; border:none; color:var(--text3); cursor:pointer; font-size:14px; padding:2px 6px; border-radius:4px; flex-shrink:0; }
+    .trade-remove-btn:hover { color:#e05a5a; background:rgba(224,90,90,.1); }
+    .trade-empty-side { font-size:12px; color:var(--text3); text-align:center; padding:16px 0; }
+    .trade-add-btns { display:flex; flex-direction:column; gap:6px; margin-top:10px; }
+    .trade-add-btn { font-size:11px; padding:6px 12px; background:rgba(0,229,204,.08); border:1px solid rgba(0,229,204,.2); color:var(--accent); border-radius:var(--r-sm); cursor:pointer; font-family:var(--font-ui); text-align:center; transition:background .15s; }
+    .trade-add-btn:hover { background:rgba(0,229,204,.15); }
+    .trade-cash-row { display:flex; gap:10px; align-items:center; background:var(--bg2); border:1px solid var(--border); border-radius:var(--r-md); padding:14px 16px; margin-bottom:16px; flex-wrap:wrap; }
+    .trade-cash-label { font-size:12px; color:var(--text3); white-space:nowrap; }
+    .trade-cash-select { background:var(--bg3); border:1px solid var(--border); color:var(--text); border-radius:var(--r-sm); padding:6px 10px; font-size:12px; font-family:var(--font-ui); cursor:pointer; }
+    .trade-cash-input { background:var(--bg3); border:1px solid var(--border); color:var(--text); border-radius:var(--r-sm); padding:6px 10px; font-size:12px; font-family:var(--font-mono); width:120px; }
+    .trade-cash-note { font-size:11px; color:var(--text3); margin-top:8px; font-family:var(--font-mono); }
+    .trade-verdict-placeholder { text-align:center; padding:28px; color:var(--text3); font-size:13px; }
+    .trade-verdict-card { padding:20px; border-radius:var(--r-md); border:1px solid; text-align:center; }
+    .verdict-fair { border-color:rgba(0,229,204,.3); background:rgba(0,229,204,.06); }
+    .verdict-warn { border-color:rgba(245,166,35,.3); background:rgba(245,166,35,.06); }
+    .verdict-bad  { border-color:rgba(224,90,90,.3);  background:rgba(224,90,90,.06); }
+    .trade-verdict-emoji { font-size:32px; margin-bottom:8px; }
+    .trade-verdict-title { font-family:var(--font-display); font-size:16px; font-weight:700; margin-bottom:6px; }
+    .verdict-fair .trade-verdict-title { color:var(--accent); }
+    .verdict-warn .trade-verdict-title { color:#f5a623; }
+    .verdict-bad  .trade-verdict-title { color:#e05a5a; }
+    .trade-verdict-advice { font-size:13px; color:var(--text2); margin-bottom:14px; line-height:1.5; }
+    .trade-verdict-breakdown { margin-top:14px; padding-top:14px; border-top:1px solid var(--border); text-align:left; }
+    .trade-breakdown-row { display:flex; justify-content:space-between; align-items:center; padding:5px 0; font-size:13px; color:var(--text2); }
+    #trade-search-overlay { z-index:1100; }
+    .trade-search-inner { padding:24px 28px; }
+    .trade-search-controls { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+    .trade-lang-btn, .trade-type-btn { font-size:11px; padding:5px 12px; border:1px solid var(--border); background:var(--bg2); color:var(--text3); border-radius:var(--r-sm); cursor:pointer; font-family:var(--font-ui); transition:all .15s; }
+    .trade-lang-btn.active, .trade-type-btn.active { background:rgba(0,229,204,.12); border-color:rgba(0,229,204,.4); color:var(--accent); }
+    .trade-custom-panel { margin-top:14px; padding:14px; background:var(--bg2); border:1px solid var(--border); border-radius:var(--r-md); }
+    .trade-custom-name { font-size:13px; font-weight:600; color:var(--text); margin-bottom:10px; }
+    .trade-portfolio-picker { display:none; background:var(--bg2); border:1px solid var(--border); border-radius:var(--r-md); margin-top:10px; max-height:280px; overflow-y:auto; }
+
+    /* ── Chart modal fix */
+    #portfolio-chart-loading { display:flex; align-items:center; justify-content:center; flex-direction:column; gap:12px; padding:40px; color:var(--text3); }
+
+    /* ── Sell button — white text ── */
+    .btn-sell { color: #ffffff !important; }
+
+    /* ── Card detail grade comparison chips (v26: dynamic, colour-variable based) ── */
+    .cd-grade-chip {
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid var(--chip-color, var(--border));
+      background: transparent;
+      color: var(--chip-color, var(--text3));
+      font-size: 11px; font-weight: 600;
+      font-family: var(--font-ui);
+      cursor: pointer;
+      transition: background .15s, color .15s;
+      white-space: nowrap;
+    }
+    .cd-grade-chip.active {
+      background: var(--chip-color, var(--accent));
+      color: #0a0c10;
+    }
+    .cd-grade-chip:hover:not(.active) {
+      background: color-mix(in srgb, var(--chip-color, var(--accent)) 15%, transparent);
+    }
+    .cd-chip-compare {
+      --chip-color: var(--text3);
+      border-style: dashed;
+      font-weight: 500;
+    }
+    .cd-chip-compare:hover { --chip-color: var(--text); background: var(--bg2); }
+
+    /* ── Mobile: table header hidden on tiny screens, card view shown ── */
+    @media (max-width: 480px) {
+      /* Collapse the table header since we hide most columns */
+      .pf-table thead th:nth-child(n+2) { display: none; }
+      /* Table acts more like a list */
+      .pf-table td:first-child { width: 100%; }
+      /* Modal close button always tappable */
+      .modal-close-btn { width: 36px; height: 36px; font-size: 16px; }
+      /* Portfolio chart canvas full width */
+      #portfolio-chart-canvas { width: 100% !important; }
+      /* CDM grade buttons: wrap on small screen */
+      .cd-grade-chip { font-size: 10px; padding: 3px 8px; }
+      /* P/L table scroll */
+      .pl-overlay-inner { padding: 12px; }
+      .pl-txn-table { font-size: 11px; }
+      .pl-txn-table td, .pl-txn-table th { padding: 6px 6px; }
+      /* Hide less-important sold table columns on phone */
+      .pl-txn-table th:nth-child(3),
+      .pl-txn-table td:nth-child(3),
+      .pl-txn-table th:nth-child(5),
+      .pl-txn-table td:nth-child(5) { display: none; }
+    }
+
+    /* ── Portfolio chart time range buttons ── */
+    .pf-range-btn {
+      padding: 5px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text3);
+      font-size: 12px;
+      font-weight: 600;
+      font-family: var(--font-ui);
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .pf-range-btn.active {
+      background: var(--bg3);
+      color: var(--accent);
+      border-color: rgba(0,229,204,.3);
+    }
+    .pf-range-btn:hover:not(.active) { color: var(--text); background: var(--bg3); }
+
+  </style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ── Header ─────────────────────────────────────────── -->
+  <header id="site-header">
+    <div class="logo">
+      <img src="/logo.jpeg" alt="PokéVault Logo" class="logo-img" />
+      <div class="logo-text-wrap">
+        <span class="logo-mark">PokéVault</span>
+        <span class="logo-sub">v26 · Live Prices</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <span class="header-badge" id="fx-rate">USD/SGD: —</span>
+      <span id="premium-badge" class="premium-badge" style="display:none;">⭐ Pro</span>
+      <span class="header-user" id="username-display"></span>
+      <button class="btn-logout" onclick="logout()">Sign out</button>
+      <button class="btn-share-settings" onclick="openShareSettingsModal()" title="Portfolio sharing settings">🔗 Share</button>
+    </div>
+  </header>
+
+  <!-- ── Tab Nav ─────────────────────────────────────────── -->
+  <nav class="tab-nav" role="tablist">
+    <button class="tab-btn active" id="nav-portfolio" role="tab" aria-selected="true"
+            onclick="switchMainTab('portfolio')">
+      <span class="tab-icon">📊</span> Portfolio
+    </button>
+    <button class="tab-btn" id="nav-search" role="tab" aria-selected="false"
+            onclick="switchMainTab('search')" style="display:none;">
+      <span class="tab-icon">🔍</span> Search
+    </button>
+  </nav>
+
+  <!-- ════════════════════════════════════════════════════════════
+       SEARCH TAB
+  ════════════════════════════════════════════════════════════ -->
+  <div id="tab-search" class="main-tab" style="display:none;">
+
+    <div class="search-panel">
+      <div class="search-row">
+        <div class="search-wrap">
+          <span class="search-icon">⌕</span>
+          <input type="text" id="search-input"
+            placeholder="199/165  ·  Charizard  ·  Pikachu ex  ·  Base Set Booster Box"
+            autocomplete="off" spellcheck="false" aria-label="Search Pokémon cards or sealed products" />
+        </div>
+        <input type="text" id="set-input" placeholder="Set name (optional)"
+          autocomplete="off" spellcheck="false" aria-label="Filter by set name" />
+        <div class="lang-toggle" role="group" aria-label="Language">
+          <button class="lang-btn active" data-lang="english"  aria-pressed="true">🇺🇸 EN</button>
+          <button class="lang-btn"        data-lang="japanese" aria-pressed="false">🇯🇵 JP</button>
+        </div>
+        <div class="search-type-toggle" role="group" aria-label="Search type">
+          <button class="search-type-btn active" data-type="cards"  aria-pressed="true">Cards</button>
+          <button class="search-type-btn"        data-type="sealed" aria-pressed="false">Sealed</button>
+        </div>
+        <button class="btn-search" id="search-btn" aria-label="Search">Search</button>
+      </div>
+
+      <div class="hint-row" aria-label="Quick searches">
+        <span class="hint-chip" data-query="199/165"      title="Charizard ex from 151">199/165</span>
+        <span class="hint-chip" data-query="001/165"      title="Bulbasaur from 151">001/165</span>
+        <span class="hint-chip" data-query="025/165"      title="Pikachu from 151">025/165</span>
+        <span class="hint-chip" data-query="Charizard ex" title="Charizard ex cards">Charizard ex</span>
+        <span class="hint-chip" data-query="Umbreon"      title="Umbreon cards">Umbreon</span>
+        <span class="hint-chip" data-query="Mewtwo" data-lang="japanese" title="Mewtwo — JP prices">Mewtwo 🇯🇵</span>
+      </div>
+    </div>
+
+    <div class="status-bar hidden" id="status-bar">
+      <div class="result-count" id="result-count"></div>
+      <div class="view-toggle" role="group" aria-label="View">
+        <button class="view-btn active" data-view="grid" aria-label="Grid view">⊞</button>
+        <button class="view-btn"        data-view="list" aria-label="List view">☰</button>
+      </div>
+    </div>
+
+    <div id="welcome-state">
+      <div class="welcome-title">Search any card or sealed product.</div>
+      <p class="welcome-sub">
+        Type a card number like <strong>199/165</strong> to instantly find the Charizard ex from 151.
+        Switch to <strong>Sealed</strong> to search booster boxes and ETBs.
+        Click <strong>+ Portfolio</strong> to track it as an investment.
+      </p>
+      <div class="example-searches" role="list">
+        <button class="example-chip" data-query="199/165"      role="listitem">199/165 — 151 Charizard</button>
+        <button class="example-chip" data-query="Pikachu ex"   role="listitem">Pikachu ex</button>
+        <button class="example-chip" data-query="Umbreon VMAX" role="listitem">Umbreon VMAX</button>
+        <button class="example-chip" data-query="001/165"      role="listitem">001/165 — Bulbasaur</button>
+        <button class="example-chip" data-query="Mewtwo" data-lang="japanese" role="listitem">Mewtwo 🇯🇵</button>
+        <button class="example-chip" data-query="Rayquaza"     role="listitem">Rayquaza</button>
+      </div>
+    </div>
+
+    <div id="loading" role="status" aria-live="polite">
+      <div class="spinner"></div>
+      <div class="loading-text">Fetching prices…</div>
+    </div>
+
+    <div id="empty-state" role="status" aria-live="polite">
+      <div class="state-icon">🔍</div>
+      <div class="state-title">No results found</div>
+      <div class="state-desc">
+        Try a different name or number. For sealed products, switch to the Sealed tab.
+      </div>
+    </div>
+
+    <div id="error-state" role="alert" aria-live="assertive">
+      <div class="state-icon">⚠</div>
+      <div class="state-title">Something went wrong</div>
+      <div class="state-desc" id="error-msg"></div>
+    </div>
+
+    <div id="results-grid" class="hidden" role="list" aria-label="Search results"></div>
+
+  </div><!-- /tab-search -->
+
+
+  <!-- ════════════════════════════════════════════════════════════
+       PORTFOLIO TAB
+  ════════════════════════════════════════════════════════════ -->
+  <div id="tab-portfolio" class="main-tab">
+
+    <!-- Portfolio Metrics -->
+    <div class="pf-metrics">
+      <div class="pf-metric-card">
+        <div class="pf-metric-label">Total Cost</div>
+        <div class="pf-metric-val" id="pf-metric-cost">SGD $—</div>
+      </div>
+      <div class="pf-metric-card">
+        <div class="pf-metric-label">Current Value</div>
+        <div class="pf-metric-val accent" id="pf-metric-value">SGD $—</div>
+      </div>
+      <div class="pf-metric-card">
+        <div class="pf-metric-label">Unrealised P/L</div>
+        <div class="pf-metric-val" id="pf-metric-pl">—</div>
+      </div>
+      <div class="pf-metric-card">
+        <div class="pf-metric-label">ROI</div>
+        <div class="pf-metric-val" id="pf-metric-roi">—</div>
+      </div>
+      <!-- P/L Dashboard — interactive -->
+      <div class="pf-metric-card pl-open-btn" onclick="openPLDashboard()" title="View full P/L breakdown">
+        <div class="pf-metric-label">P/L Dashboard</div>
+        <div class="pf-metric-val" id="pf-metric-lifetime" style="font-size:13px;">—</div>
+      </div>
+      <!-- Price History — interactive -->
+      <div class="pf-metric-card clickable-metric" onclick="openPortfolioChartModal()" title="View portfolio price history chart">
+        <div class="pf-metric-label">Price History</div>
+        <div class="pf-metric-val" id="history-days-display" style="font-size:12px;">—</div>
+      </div>
+      <!-- Trade Analyser — interactive -->
+      <div class="pf-metric-card clickable-metric" onclick="openTradeAnalyser()" title="Analyse a trade">
+        <div class="pf-metric-label">Trade Analyser</div>
+        <div class="pf-metric-val" style="font-size:13px;">Fair deal?</div>
+      </div>
+      <!-- Share Portfolio moved to header toolbar (avoids 2nd row wrap in metrics grid) -->
+    </div>
+
+    <!-- Portfolio Add-Card Search -->
+    <div class="pf-search-panel">
+      <div class="pf-search-header">
+        <span class="pf-search-title">Add to Portfolio</span>
+        <span class="pf-search-sub">Search for a card or sealed product, then click + Portfolio</span>
+      </div>
+      <div class="pf-search-row">
+        <div class="search-wrap" style="flex:2;">
+          <span class="search-icon">⌕</span>
+          <input type="text" id="pf-search-input"
+            placeholder="Card name, number, or sealed product…"
+            autocomplete="off" spellcheck="false"
+            oninput="pfSearchDebounce()" onkeydown="if(event.key==='Enter')pfSearch()" />
+        </div>
+        <input type="text" id="pf-set-input"
+          class="pf-set-input"
+          placeholder="Set name (optional)"
+          autocomplete="off" spellcheck="false"
+          oninput="pfSearchDebounce()" onkeydown="if(event.key==='Enter')pfSearch()" />
+        <div class="lang-toggle" role="group">
+          <button class="lang-btn pf-lang-btn active" data-lang="english"  onclick="pfSetSearchLang('english')">🇺🇸 EN</button>
+          <button class="lang-btn pf-lang-btn"        data-lang="japanese" onclick="pfSetSearchLang('japanese')">🇯🇵 JP</button>
+        </div>
+        <div class="search-type-toggle">
+          <button class="search-type-btn active" id="pf-type-cards"  onclick="pfSetSearchType('cards')">Cards</button>
+          <button class="search-type-btn"        id="pf-type-sealed" onclick="pfSetSearchType('sealed')">Sealed</button>
+        </div>
+        <button class="btn-search" onclick="pfSearch()">Search</button>
+      </div>
+      <div id="pf-search-results" style="display:none;"></div>
+    </div>
+
+    <!-- Portfolio Table -->
+    <div class="pf-table-wrap">
+      <div class="pf-table-header">
+        <span class="pf-table-title">Holdings</span>
+        <div style="display:flex;gap:8px;">
+          <button class="btn-refresh-small" onclick="exportPortfolioCsv()" title="Export your portfolio as a CSV file">⬇ Export CSV</button>
+          <button class="btn-refresh-small" onclick="refreshPortfolioValues(false)" title="Refresh current values">↻ Refresh values</button>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table class="pf-table">
+          <thead>
+            <tr>
+              <th>Card / Product</th>
+              <th>Set</th>
+              <th>Condition</th>
+              <th>Qty</th>
+              <th>Cost (SGD)</th>
+              <th>Value (SGD)</th>
+              <th>Unrealised P/L</th>
+            </tr>
+          </thead>
+          <tbody id="portfolio-table">
+            <tr><td colspan="7"><div class="empty-state">No items in portfolio — search for a card above and click "+ Portfolio"</div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /tab-portfolio -->
+
+</div><!-- /app -->
+
+
+<!-- ── Search Result Detail Modal ─────────────────────────────── -->
+<div id="modal-overlay" class="modal-overlay" onclick="closeModal(event)" role="dialog" aria-modal="true" aria-label="Card detail">
+  <div class="modal">
+    <div class="modal-close">
+      <button class="modal-close-btn" onclick="_destroyModal()" aria-label="Close">✕</button>
+    </div>
+    <div id="modal-content"></div>
+  </div>
+</div>
+
+<!-- ── Card Detail Modal (Portfolio row click) ─────────────────── -->
+<div id="card-detail-overlay" class="modal-overlay" onclick="closeCardDetailModal(event)" role="dialog" aria-modal="true" aria-label="Card detail">
+  <div class="modal modal-wide modal-cdm">
+    <div class="modal-close">
+      <button class="modal-close-btn" onclick="closeCardDetailModal()" aria-label="Close">✕</button>
+    </div>
+    <div id="card-detail-content" style="padding: 28px;"></div>
+  </div>
+</div>
+
+<!-- ── Portfolio Chart Modal ────────────────────────────────────── -->
+<div id="portfolio-chart-overlay" class="modal-overlay" onclick="closePortfolioChartModal(event)" role="dialog" aria-modal="true" aria-label="Portfolio chart">
+  <div class="modal modal-wide">
+    <div class="modal-close">
+      <button class="modal-close-btn" onclick="closePortfolioChartModal()" aria-label="Close">✕</button>
+    </div>
+    <div id="portfolio-chart-content" style="padding:28px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:20px;">
+        <div style="font-family:var(--font-display);font-size:16px;font-weight:700;color:var(--text);">Portfolio Value History</div>
+      </div>
+      <div id="portfolio-chart-loading">
+        <div class="spinner"></div>
+        <div>Loading price history…</div>
+      </div>
+      <canvas id="portfolio-chart-canvas" style="display:none;max-height:400px;"></canvas>
+      <div id="portfolio-chart-error" style="display:none;text-align:center;padding:40px;color:var(--text3);">No history data available yet. Try refreshing your portfolio values first.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── P/L Dashboard Modal ─────────────────────────────────────── -->
+<div id="pl-overlay" class="modal-overlay" onclick="closePLDashboard(event)" role="dialog" aria-modal="true" aria-label="P/L Dashboard">
+  <div class="modal modal-wide">
+    <div class="modal-close">
+      <button class="modal-close-btn" onclick="closePLDashboard()" aria-label="Close">✕</button>
+    </div>
+    <div class="pl-overlay-inner">
+      <div style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:20px;color:var(--text);">P/L Dashboard</div>
+
+      <div class="pl-tab-nav" role="tablist">
+        <button class="pl-tab-btn active" id="pl-nav-current" onclick="switchPLTab('current')" role="tab" aria-selected="true">📈 Top Movers</button>
+        <button class="pl-tab-btn"        id="pl-nav-history" onclick="switchPLTab('history')" role="tab" aria-selected="false">💰 Sold Transactions</button>
+      </div>
+
+      <!-- Tab 1: Top Movers -->
+      <div class="pl-panel active" id="pl-panel-current">
+        <div class="pl-lifetime-banner">
+          <div>
+            <div class="pl-lifetime-label">Unrealised P/L — Active Holdings</div>
+            <div class="pl-lifetime-val" id="pl-current-total">—</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="pl-lifetime-label">Total Cost</div>
+            <div style="font-family:var(--font-mono);font-size:14px;color:var(--text2);margin-top:2px;" id="pl-current-cost">—</div>
+            <div class="pl-lifetime-label" style="margin-top:8px;">Current Value</div>
+            <div style="font-family:var(--font-mono);font-size:14px;color:var(--text2);margin-top:2px;" id="pl-current-value">—</div>
+          </div>
+        </div>
+        <div id="pl-movers-content">
+          <div style="text-align:center;padding:32px;color:var(--text3);">Loading…</div>
+        </div>
+      </div>
+
+      <!-- Tab 2: Sold Transactions -->
+      <div class="pl-panel" id="pl-panel-history">
+        <div class="pl-lifetime-banner">
+          <div>
+            <div class="pl-lifetime-label">Lifetime Realised P/L</div>
+            <div class="pl-lifetime-val" id="pl-lifetime-total">—</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="pl-lifetime-label">Total Invested</div>
+            <div style="font-family:var(--font-mono);font-size:14px;color:var(--text2);margin-top:2px;" id="pl-lifetime-cost">—</div>
+            <div class="pl-lifetime-label" style="margin-top:8px;">Total Received</div>
+            <div style="font-family:var(--font-mono);font-size:14px;color:var(--text2);margin-top:2px;" id="pl-lifetime-revenue">—</div>
+          </div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="pl-txn-table">
+            <thead>
+              <tr>
+                <th>Card / Product</th>
+                <th>Qty</th>
+                <th>Cost Basis</th>
+                <th>Sold For</th>
+                <th>Sold Date</th>
+                <th>Realised P/L</th>
+                <th>ROI</th>
+              </tr>
+            </thead>
+            <tbody id="pl-history-table">
+              <tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text3);">No sold items yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ── Mark as Sold Modal ──────────────────────────────────────── -->
+<div id="sell-overlay" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Mark as Sold">
+  <div class="modal" style="max-width:440px;">
+    <div class="modal-close">
+      <button class="modal-close-btn" onclick="closeSellModal()" aria-label="Close">✕</button>
+    </div>
+    <div class="sell-form">
+      <h2>Mark as Sold</h2>
+      <div class="sell-item-preview">
+        <img id="sell-item-img" src="" alt="" style="display:none;" />
+        <span id="sell-item-icon" style="font-size:24px;margin-right:4px;display:none;"></span>
+        <div>
+          <div class="sell-item-name" id="sell-item-name">—</div>
+          <div class="sell-item-meta" id="sell-item-meta">—</div>
+          <div class="sell-cost-hint" id="sell-cost-hint"></div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Sold Price — Total Received (SGD)</label>
+        <input type="number" id="sell-price" class="form-input" step="0.01" min="0" placeholder="0.00" />
+        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Enter the total amount received for all units sold.</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Date Sold</label>
+        <input type="date" id="sell-date" class="form-input" />
+      </div>
+      <div style="display:flex;gap:10px;margin-top:24px;">
+        <button class="btn-search btn-sell" style="flex:1;background:var(--accent-sell,#e05a5a);" onclick="confirmSellItem()">✓ Confirm Sale</button>
+        <button class="btn-cancel" onclick="closeSellModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Portfolio Add Modal ─────────────────────────────────────── -->
+<div id="portfolio-add-overlay" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Add to portfolio">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-close">
+      <button class="modal-close-btn" onclick="closePortfolioAddModal()" aria-label="Close">✕</button>
+    </div>
+    <div style="padding:0 28px 28px;">
+      <h2 style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:20px;color:var(--text);">Add to Portfolio</h2>
+      <div style="display:flex;gap:14px;align-items:center;margin-bottom:20px;padding:14px;background:var(--bg2);border-radius:var(--r-md);border:1px solid var(--border);">
+        <img id="pf-item-img" src="" alt="" style="width:44px;height:60px;object-fit:contain;border-radius:4px;display:none;" />
+        <div>
+          <div id="pf-item-name" style="font-weight:700;font-size:14px;color:var(--text);"></div>
+          <div id="pf-item-set" style="font-size:12px;color:var(--text3);font-family:var(--font-mono);margin-top:2px;"></div>
+          <div id="pf-item-type" style="font-size:11px;color:var(--accent);margin-top:4px;"></div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Purchase Price (SGD)</label>
+        <input type="number" id="pf-purchase-price" class="form-input" step="0.01" min="0" placeholder="0.00" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Quantity</label>
+        <input type="number" id="pf-quantity" class="form-input" value="1" min="1" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Condition / Grade</label>
+        <select id="pf-condition" class="form-input">
+          <option value="Near Mint">Near Mint</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes (optional)</label>
+        <input type="text" id="pf-notes" class="form-input" placeholder="e.g. Bought at locals" />
+      </div>
+      <div style="display:flex;gap:10px;margin-top:20px;">
+        <button class="btn-search" style="flex:1;" onclick="savePortfolioItem()">Add to Portfolio</button>
+        <button class="btn-cancel" onclick="closePortfolioAddModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════
+     TRADE ANALYSER MODAL
+════════════════════════════════════════════════════════════════ -->
+<div id="trade-overlay" class="modal-overlay" onclick="closeTradeAnalyser(event)" role="dialog" aria-modal="true" aria-label="Trade Analyser">
+  <div class="modal" style="max-width:720px;">
+    <div class="modal-close">
+      <button class="modal-close-btn" onclick="closeTradeAnalyser()" aria-label="Close">✕</button>
+    </div>
+    <div class="trade-overlay-inner">
+
+      <div style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:4px;color:var(--text);">🔄 Trade Analyser</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:20px;">Compare trade values using live app prices. Within 5% = fair deal.</div>
+
+      <div class="trade-grid">
+        <!-- My side -->
+        <div class="trade-side">
+          <div class="trade-side-label">Your Side</div>
+          <div class="trade-side-total" id="trade-my-total">SGD $0.00</div>
+          <div class="trade-side-effective" id="trade-my-effective"></div>
+          <div id="trade-my-items"></div>
+          <div class="trade-add-btns">
+            <button class="trade-add-btn" onclick="openTradeSearch('my')">+ Search card / sealed</button>
+            <button class="trade-add-btn" onclick="addFromPortfolioToTrade('my')">+ From my portfolio</button>
+          </div>
+          <div class="trade-portfolio-picker" id="trade-portfolio-picker">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border);">
+              <span style="font-size:12px;font-weight:600;color:var(--text);">Pick from portfolio</span>
+              <button onclick="closePortfolioPicker()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;">✕</button>
+            </div>
+            <div id="trade-portfolio-picker-list"></div>
+          </div>
+        </div>
+
+        <div class="trade-vs">VS</div>
+
+        <!-- Their side -->
+        <div class="trade-side">
+          <div class="trade-side-label">Their Side</div>
+          <div class="trade-side-total" id="trade-their-total">SGD $0.00</div>
+          <div class="trade-side-effective" id="trade-their-effective"></div>
+          <div id="trade-their-items"></div>
+          <div class="trade-add-btns">
+            <button class="trade-add-btn" onclick="openTradeSearch('their')">+ Search card / sealed</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cash top-up -->
+      <div class="trade-cash-row">
+        <span class="trade-cash-label">💵 Cash in trade:</span>
+        <select id="trade-cash-dir" class="trade-cash-select" onchange="updateTradeVerdict()">
+          <option value="none">No cash</option>
+          <option value="i_pay">I pay cash</option>
+          <option value="they_pay">They pay cash</option>
+        </select>
+        <input type="number" id="trade-cash-amount" class="trade-cash-input" placeholder="0.00" min="0" step="0.01" oninput="updateTradeVerdict()" />
+        <span style="font-size:12px;color:var(--text3);">SGD</span>
+      </div>
+
+      <!-- Verdict -->
+      <div id="trade-verdict">
+        <div class="trade-verdict-placeholder">Add items to both sides to analyse the trade.</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ── Trade Search Sub-Modal ───────────────────────────────────── -->
+<div id="trade-search-overlay" class="modal-overlay" style="z-index:1100;" role="dialog" aria-modal="true" aria-label="Add trade item">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-close">
+      <button class="modal-close-btn" onclick="closeTradeSearch()" aria-label="Close">✕</button>
+    </div>
+    <div class="trade-search-inner">
+      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:16px;">
+        Add item — <span id="trade-search-side-label" style="color:var(--accent);"></span>
+      </div>
+
+      <div class="trade-search-controls">
+        <button class="trade-lang-btn active" data-lang="english" onclick="setTradeLang('english')">🇺🇸 EN</button>
+        <button class="trade-lang-btn" data-lang="japanese" onclick="setTradeLang('japanese')">🇯🇵 JP</button>
+        <button class="trade-type-btn active" data-type="cards" onclick="setTradeType('cards')">Cards</button>
+        <button class="trade-type-btn" data-type="sealed" onclick="setTradeType('sealed')">Sealed</button>
+      </div>
+
+      <div class="search-wrap" style="margin-bottom:12px;">
+        <span class="search-icon">⌕</span>
+        <input type="text" id="trade-search-input"
+          placeholder="Card name, number, or sealed product…"
+          autocomplete="off" spellcheck="false"
+          oninput="tradeSearchDebounce()" onkeydown="if(event.key==='Enter')doTradeSearch()" />
+      </div>
+
+      <div id="trade-search-results-box" style="max-height:220px;overflow-y:auto;"></div>
+
+      <!-- Custom value override -->
+      <div id="trade-custom-panel" style="display:none;" class="trade-custom-panel">
+        <div class="trade-custom-name" id="trade-custom-name"></div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label class="form-label">Confirm value (SGD) — edit if needed</label>
+          <input type="number" id="trade-custom-price" class="form-input" step="0.01" min="0" placeholder="0.00" />
+          <div style="font-size:11px;color:var(--text3);margin-top:4px;">Pre-filled from live app price. Adjust to your agreed value.</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn-search" style="flex:1;" onclick="confirmTradeItem()">Add to Trade</button>
+          <button class="btn-cancel" onclick="document.getElementById('trade-custom-panel').style.display='none'">Back</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ── Confirm Dialog ──────────────────────────────────────────── -->
+<div id="confirm-overlay" class="modal-overlay" role="dialog" aria-modal="true">
+  <div class="modal" style="max-width:400px;padding:28px;">
+    <p id="confirm-message" style="font-size:14px;color:var(--text);margin-bottom:20px;line-height:1.6;"></p>
+    <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <button class="btn-cancel" id="confirm-cancel">Cancel</button>
+      <button class="btn-danger" id="confirm-ok">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Share Settings Modal ─────────────────────────────────────── -->
+<div id="share-settings-overlay" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Portfolio sharing settings">
+  <div class="modal" style="max-width:440px;padding:28px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+      <h2 style="font-size:16px;font-weight:700;margin:0;">🔗 Share Portfolio</h2>
+      <button class="btn-cancel" onclick="closeOverlay('share-settings-overlay')" aria-label="Close">✕</button>
+    </div>
+
+    <p style="font-size:13px;color:var(--text3);margin:0 0 18px;line-height:1.6;">
+      Enable sharing to give anyone a public link to your collection. Your purchase prices are never shown publicly.
+    </p>
+
+    <label style="display:flex;align-items:center;gap:10px;margin-bottom:18px;cursor:pointer;">
+      <input type="checkbox" id="share-toggle" style="width:18px;height:18px;cursor:pointer;" />
+      <span style="font-size:14px;font-weight:600;">Enable public portfolio</span>
+    </label>
+
+    <label style="display:block;margin-bottom:6px;font-size:12px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.04em;">
+      URL Slug
+    </label>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+      <span style="font-size:13px;color:var(--text3);white-space:nowrap;">/p/</span>
+      <input id="share-slug-input" type="text" placeholder="your-username"
+             style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;"
+             maxlength="50" pattern="[a-z0-9_\-]+" />
+    </div>
+    <p style="font-size:11px;color:var(--text3);margin:0 0 16px;">Lowercase letters, numbers, hyphens, underscores. Max 50 characters.</p>
+
+    <label style="display:block;margin-bottom:6px;font-size:12px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.04em;">
+      Share Link
+    </label>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;">
+      <a id="share-link-display" href="#" target="_blank" rel="noopener"
+         style="flex:1;font-size:12px;color:var(--accent);font-family:var(--font-mono,monospace);word-break:break-all;text-decoration:none;">—</a>
+      <button class="btn-secondary" onclick="copyShareLink()" style="white-space:nowrap;font-size:12px;padding:6px 12px;">Copy</button>
+    </div>
+
+    <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <button class="btn-cancel" onclick="closeOverlay('share-settings-overlay')">Cancel</button>
+      <button class="btn-primary" onclick="saveShareSettings()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Toast Container ─────────────────────────────────────────── -->
+<div id="toast-container" aria-live="polite"></div>
+
+<script src="/js/app.js"></script>
+<!-- ── Card Detail Modal renderer ────────────────────────────────
+     Provides openCardDetailModal(item, priceData) used by app.js
+     when a portfolio table row is clicked.
+──────────────────────────────────────────────────────────────── -->
+<script>
+/* ── Card Detail Modal — render only; data functions live in app.js ── */
+// loadCdmChart, switchCdmGrade, switchCardDetailTab, closeCardDetailModal
+// are all defined in app.js where they have direct access to the
+// authenticated _sb client (no window._sb cross-script reference).
+
+async function openCardDetailModal(item, priceData) {
+  const overlay = document.getElementById('card-detail-overlay');
+  const content = document.getElementById('card-detail-content');
+  if (!overlay || !content) return;
+
+  const fxRate = window._fxRate || 1.35;
+  function toSgd(v) { return v != null ? (parseFloat(v) * fxRate).toFixed(2) : null; }
+  function fmtSgd(v) { return v != null ? `SGD $${v}` : '—'; }
+
+  const p      = priceData || {};
+  const prices = p.prices  || {};
+
+  const marketSgd = toSgd(prices.market    ?? p.averagePrice ?? p.marketPrice ?? p.price ?? null);
+  const lowSgd    = toSgd(prices.lowPrice  ?? null);
+  const midSgd    = toSgd(prices.midPrice  ?? null);
+  const highSgd   = toSgd(prices.highPrice ?? null);
+  const jpSgd     = toSgd(p.japanesePrice  ?? null);
+
+  const holdingCost  = item.purchase_price != null ? `SGD $${parseFloat(item.purchase_price).toFixed(2)}` : '—';
+  const holdingValue = item.current_value  != null ? `SGD $${parseFloat(item.current_value).toFixed(2)}`  : '—';
+  const holdingPL    = (item.purchase_price != null && item.current_value != null)
+    ? (parseFloat(item.current_value) - parseFloat(item.purchase_price)) * (item.quantity || 1) : null;
+  const plStr   = holdingPL != null ? `${holdingPL >= 0 ? '+' : ''}SGD $${holdingPL.toFixed(2)}` : '—';
+  const plColor = holdingPL == null ? '' : holdingPL >= 0 ? 'color:var(--accent);' : 'color:#e05a5a;';
+
+  const imgUrl = item.image_url || '';
+  const name   = item.name      || 'Unknown Card';
+  const setN   = item.set_name  || '';
+  const lang   = item.language  || 'english';
+  const type   = item.type      || 'card';
+
+  // Reset grade mode via app.js exposed function
+  if (window._resetCdmGrade) window._resetCdmGrade();
+
+  content.innerHTML = `
+    <div class="card-detail-tab-nav" role="tablist">
+      <button class="card-detail-tab-btn active" id="cdm-tab-price" onclick="switchCardDetailTab('price')" role="tab">💰 Price Info</button>
+      <button class="card-detail-tab-btn" id="cdm-tab-art" onclick="switchCardDetailTab('art')" role="tab">🖼 Card Artwork</button>
+    </div>
+
+    <!-- Tab 1: Price Info -->
+    <div class="card-detail-panel active" id="cdm-panel-price">
+      <div class="cdm-layout-grid">
+        <!-- Left: compact card summary + holding stats + live prices -->
+        <div class="cdm-side-col">
+          ${imgUrl ? `<img class="cdm-thumb" src="${imgUrl}" alt="${name}" loading="lazy" style="width:100%;height:auto;max-height:200px;" />` : ''}
+          <div>
+            <div class="cdm-name">${name}</div>
+            ${setN ? `<div class="cdm-set">${setN}</div>` : ''}
+            <div style="margin-top:6px;">
+              <span class="cdm-badge">${type === 'sealed' ? '📦 Sealed' : '🃏 Card'}</span>
+              ${lang === 'japanese' ? '<span class="cdm-badge" style="margin-left:6px;">🇯🇵 Japanese</span>' : ''}
+            </div>
+          </div>
+
+          <div class="cdm-section-title" style="margin-bottom:6px;">Your Holding</div>
+          <div class="cdm-stat-row">
+            <span class="cdm-stat-label">Purchase</span>
+            <span class="cdm-stat-val">${holdingCost}</span>
+          </div>
+          <div class="cdm-stat-row">
+            <span class="cdm-stat-label">Current</span>
+            <span class="cdm-stat-val accent">${holdingValue}</span>
+          </div>
+          <div class="cdm-stat-row">
+            <span class="cdm-stat-label">P/L</span>
+            <span class="cdm-stat-val" style="${plColor}">${plStr}</span>
+          </div>
+          <div class="cdm-stat-row">
+            <span class="cdm-stat-label">Qty</span>
+            <span class="cdm-stat-val">${item.quantity || 1}</span>
+          </div>
+
+          ${(marketSgd || lowSgd || midSgd || highSgd || jpSgd) ? `
+          <div class="cdm-section-title" style="margin-bottom:6px;">Live Market (SGD)</div>
+          ${marketSgd ? `<div class="cdm-stat-row"><span class="cdm-stat-label">Market</span><span class="cdm-stat-val accent">$${marketSgd}</span></div>` : ''}
+          ${lowSgd    ? `<div class="cdm-stat-row"><span class="cdm-stat-label">Low</span><span class="cdm-stat-val">$${lowSgd}</span></div>` : ''}
+          ${midSgd    ? `<div class="cdm-stat-row"><span class="cdm-stat-label">Mid</span><span class="cdm-stat-val">$${midSgd}</span></div>` : ''}
+          ${highSgd   ? `<div class="cdm-stat-row"><span class="cdm-stat-label">High</span><span class="cdm-stat-val">$${highSgd}</span></div>` : ''}
+          ${jpSgd     ? `<div class="cdm-stat-row"><span class="cdm-stat-label">JP Price</span><span class="cdm-stat-val">$${jpSgd}</span></div>` : ''}
+          ` : ''}
+        </div>
+
+        <!-- Right: Price History chart — v29/v32: matches Main Summary exactly
+             (accumulated value since the card was added, no time-frame
+             buttons, no Compare), sized to fit fully in view. -->
+        <div class="cdm-main-col">
+          <div class="cdm-section-title">Price History</div>
+          <div id="cdm-chart-wrap" style="position:relative;margin-top:4px;margin-bottom:4px;min-height:220px;">
+            <div id="cdm-chart-loading" style="display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;padding:32px;color:var(--text3);">
+              <div class="spinner"></div>
+              <div style="font-size:12px;">Loading price history…</div>
+            </div>
+            <canvas id="cdm-chart-canvas" style="display:none;max-height:420px;"></canvas>
+            <div id="cdm-chart-empty" style="display:none;text-align:center;padding:32px;font-size:13px;color:var(--text3);"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 2: Artwork -->
+    <div class="card-detail-panel" id="cdm-panel-art">
+      <div class="cdm-artwork-wrap">
+        ${imgUrl
+          ? `<img class="cdm-artwork-img" src="${imgUrl}" alt="${name}" loading="lazy" />`
+          : `<div class="cdm-no-art">No artwork image available for this card.</div>`
+        }
+      </div>
+    </div>
+  `;
+
+  overlay.classList.add('open');
+  overlay.style.display = 'flex';
+
+  // Load chart — defined in app.js, has direct access to authenticated _sb
+  if (window.loadCdmChart) await window.loadCdmChart(item); // v26: passes full item for dynamic grade chips
+}
+</script>
+
+</body>
+</html>
